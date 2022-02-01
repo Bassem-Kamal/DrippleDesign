@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">DrippleDesign</string>
+    <string name="app_bar_title">NaturalList</string>
+    <string name="minute_item_measurement_text">MIN</string>
+    <string name="fragment_filter_dialog_title">Filter</string>
+    <string name="fragment_filter_dialog_button_text">OK</string>
+</resources>
