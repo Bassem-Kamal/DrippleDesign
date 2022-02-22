@@ -1,35 +1,38 @@
 package com.example.drippledesign
 
 import android.app.Dialog
-import android.graphics.*
+import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.view.animation.LayoutAnimationController
 import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.drippledesign.databinding.*
+import com.example.drippledesign.databinding.FragmentFilterDialogBinding
+import com.example.drippledesign.databinding.MealItemBinding
+import com.example.drippledesign.databinding.MinuteItemBinding
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 
-class FilterDialogFragment : BottomSheetDialogFragment(), MinutesListListener {
+class FilterDialogFragment : BottomSheetDialogFragment() {
 
     private var _binding: FragmentFilterDialogBinding? = null
-    private val binding get() = _binding!!
-    private val mealsAdapter = MealsAdapter(ConstantData.mealList).apply { setHasStableIds(true) }
-    private val minutesAdapter = MinutesAdapter(ConstantData.minutesList, this).apply { setHasStableIds(true) }
+    private val binding get() = checkNotNull(_binding)
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
         _binding = FragmentFilterDialogBinding.inflate(inflater, container, false)
-        val anim: LayoutAnimationController = AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_animation_down_to_up)
+        val anim: LayoutAnimationController =
+            AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_animation_down_to_up)
         binding.root.layoutAnimation = anim
 
         setUpMealsRecyclerView()
@@ -49,68 +52,71 @@ class FilterDialogFragment : BottomSheetDialogFragment(), MinutesListListener {
 
     private fun setUpMealsRecyclerView() {
         binding.mealsList.apply {
-            layoutManager = ArcLayoutManager(requireContext())
+            layoutManager = CustomLinearLayoutManager(context)
             setHasFixedSize(true)
-            adapter = mealsAdapter
+            adapter = MealsAdapter(ConstantData.mealList) { view, pos, meal ->
+                scrollToCenter(this, layoutManager as CustomLinearLayoutManager, view, pos)
+            }.apply { setHasStableIds(true) }
         }
     }
 
     private fun setUpMinutesRecyclerView() {
         binding.minutesList.apply {
-            layoutManager = ArcLayoutManager(context)
+            layoutManager = CustomLinearLayoutManager(context)
             setHasFixedSize(true)
             setItemViewCacheSize(10)
-            adapter = minutesAdapter
+            adapter = MinutesAdapter(ConstantData.minutesList) { view, pos, deliveryTime ->
+                scrollToCenter(this, layoutManager as CustomLinearLayoutManager, view, pos)
+            }.apply { setHasStableIds(true) }
         }
+    }
+
+    private fun scrollToCenter(
+        recyclerView: RecyclerView,
+        layoutManager: CustomLinearLayoutManager,
+        selectedView: View,
+        position: Int
+    ) {
+        val itemToScroll: Int = recyclerView.getChildLayoutPosition(selectedView)
+        val centerOfScreen: Int = recyclerView.width / 2 - selectedView.width / 2
+        recyclerView.layoutManager = context?.let { CustomLinearLayoutManager(it, centerOfScreen) }
+        // layoutManager.scrollToPositionWithOffset(position, centerOfScreen)
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
-
-    override fun onItemClick(itemView: View,position: Int) {
-        Log.e(tag, "onItemClick: $position" )
-        binding.minutesList.scrollToPosition(position)
-     /*   val itemToScroll: Int = binding.minutesList.getChildAdapterPosition(itemView)
-        val centerOfScreen: Int = binding.minutesList.width / 2 - itemView.width / 2
-        val left = binding.minutesList.width / 2
-        val top = binding.minutesList.width / 2
-        val right = binding.minutesList.width / 2
-        val bottom = binding.minutesList.width / 2
-        val rect:Rect= Rect(left, top, right, bottom)
-        minutesAdapter.submitList(ConstantData.minutesList)
-        binding.minutesList.layoutManager?.requestChildRectangleOnScreen(
-            binding.minutesList,itemView,rect,false,false)*/
-      //  (binding.minutesList.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(itemToScroll, centerOfScreen)
-
-    }
 }
 
-private class MinutesAdapter(private val minutesList: List<DeliveryTime>, val listner: MinutesListListener) :
+private class MinutesAdapter(
+    private val minutesList: List<DeliveryTime>,
+    private val onItemClick: (View, Int, DeliveryTime) -> Unit
+) :
     ListAdapter<DeliveryTime, MinutesAdapter.MinutesViewHolder>(DiffCallback) {
 
-    private var binding: MinuteItemBinding? = null
+    private lateinit var binding: MinuteItemBinding
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MinutesViewHolder {
         binding = MinuteItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return MinutesViewHolder(binding!!)
+        return MinutesViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: MinutesViewHolder, position: Int) {
-        binding?.minuteItemText?.text = minutesList[position].minutes.toString()
-        binding?.root?.setOnClickListener {
-            listner.onItemClick(binding!!.root,position)
+        binding.minuteItemText.text = minutesList[position].minutes.toString()
+        binding.root.setOnClickListener {
+            onItemClick.invoke(it, position, minutesList[position])
         }
-
     }
+
     override fun getItemId(position: Int): Long {
         return minutesList[position].id.hashCode().toLong()
     }
+
     private fun changeItemAppearance(adapterPosition: Int) {
         // set selected item to be centered in arc layout manager
-        binding?.minuteItemMeasurement?.setTextColor(Color.BLACK)
-        binding?.minuteItemText?.setTextColor(Color.BLACK)
+        binding.minuteItemMeasurement.setTextColor(Color.BLACK)
+        binding.minuteItemText.setTextColor(Color.BLACK)
 
     }
 
@@ -133,18 +139,17 @@ private class MinutesAdapter(private val minutesList: List<DeliveryTime>, val li
     }
 }
 
-interface MinutesListListener {
-    fun onItemClick(itemView: View,position: Int)
-}
+private class MealsAdapter(
+    private val mealList: List<Meal>,
+    private val onItemClick: (View, Int, Meal) -> Unit
+) : ListAdapter<Meal, MealsAdapter.MealsViewHolder>(DiffCallback) {
 
-private class MealsAdapter(private val mealList: List<Meal>) :
-    ListAdapter<Meal, MealsAdapter.MealsViewHolder>(DiffCallback) {
-
-    private var binding: MealItemBinding? = null
+    private lateinit var binding: MealItemBinding
 
     override fun getItemId(position: Int): Long {
         return mealList[position].id.hashCode().toLong()
     }
+
     override fun getItemCount(): Int {
         return mealList.size
     }
@@ -166,15 +171,18 @@ private class MealsAdapter(private val mealList: List<Meal>) :
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MealsViewHolder {
         binding = MealItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return MealsViewHolder(binding!!)
+        return MealsViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: MealsViewHolder, position: Int) {
-        binding?.mealItemName?.text = mealList[position].name.uppercase()
-        binding?.let {
+        binding.mealItemName.text = mealList[position].name.uppercase()
+        binding.let {
             Glide.with(it.root.context)
                 .load(mealList[position].icon)
                 .error(R.drawable.ic_launcher_background).into(it.mealItemIcon)
+        }
+        binding.root.setOnClickListener {
+            onItemClick.invoke(binding.root, position, mealList[position])
         }
     }
 }
